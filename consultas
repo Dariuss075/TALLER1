@@ -1,0 +1,132 @@
+## 1. Insertar un registro en la tabla 'film':
+```sql
+INSERT INTO film (title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, special_features)
+VALUES ('sujeto de prueba', 'Descripcion #1', 2030, 1, NULL, 5, 8.99, 150, 2.55, 'G', 'PRUEBAS');
+```
+
+## 2. Películas más largas que la duración promedio:
+```sql
+SELECT * FROM film
+WHERE length > (SELECT AVG(length) FROM film);
+```
+ ## 3. Películas actualmente alquiladas en la tienda con store_id = 1:
+```sql
+SELECT * FROM film
+WHERE film_id IN (
+    SELECT inventory.film_id FROM inventory
+    INNER JOIN rental ON inventory.inventory_id = rental.inventory_id
+    WHERE rental.return_date IS NULL AND inventory.store_id = 1
+);
+```
+## 4. Películas alquiladas por más tiempo que el período promedio en la tienda con store_id = 1:
+```sql
+SELECT 
+    film.title
+FROM 
+    film
+    INNER JOIN inventory ON film.film_id = inventory.film_id
+    INNER JOIN rental ON inventory.inventory_id = rental.inventory_id
+WHERE 
+    inventory.store_id = 1
+GROUP BY 
+    film.title
+HAVING 
+    AVG(TIMESTAMPDIFF(DAY, rental.rental_date, rental.return_date)) > (
+        SELECT 
+            AVG(TIMESTAMPDIFF(DAY, rental_date, return_date))
+        FROM 
+            rental
+    );
+```
+## 5. Actores en el elenco de 5 o menos películas:
+```sql
+SELECT actor_id, COUNT(film_id) AS number_of_films
+FROM film_actor
+GROUP BY actor_id
+HAVING number_of_films <= 5;
+```
+## 6. Apellidos que no se repiten entre actores:
+```sql
+SELECT DISTINCT(last_name) FROM actor;
+```
+## 7. Crear una vista con los 3 géneros principales que generan mayores ingresos:
+```sql
+create VIEW Top3Generos AS
+SELECT 
+    category.name AS genre,
+    SUM(payment.amount) AS total_revenue
+FROM 
+    payment
+    INNER JOIN rental ON payment.rental_id = rental.rental_id
+    INNER JOIN inventory ON rental.inventory_id = inventory.inventory_id
+    INNER JOIN film ON inventory.film_id = film.film_id
+    INNER JOIN film_category ON film.film_id = film_category.film_id
+    INNER JOIN category ON film_category.category_id = category.category_id
+GROUP BY 
+    category.name
+ORDER BY 
+    total_revenue DESC
+LIMIT 
+    3;
+SELECT * FROM Top3Generos;
+```
+## 8. Seleccionar las dos películas más vistas (alquiladas) en cada ciudad:
+```sql
+SELECT city.city, title, COUNT(rental.rental_id) AS rental_count
+FROM rental
+INNER JOIN inventory ON rental.inventory_id = inventory.inventory_id
+INNER JOIN store ON inventory.store_id = store.store_id
+INNER JOIN address ON store.address_id = address.address_id
+INNER JOIN city ON address.city_id = city.city_id
+INNER JOIN film ON inventory.film_id = film.film_id
+GROUP BY city.city, title
+ORDER BY city.city, rental_count DESC;
+```
+## 9. Clientes de Estados Unidos que no han alquilado ninguna película en los últimos tres meses:
+```sql
+SELECT first_name, last_name, email
+FROM customer
+WHERE address_id IN (
+    SELECT address_id FROM address
+    WHERE city_id IN (
+        SELECT city_id FROM city
+        WHERE country_id = (
+            SELECT country_id FROM country
+            WHERE country = 'United States'
+        )
+    )
+)
+AND customer_id NOT IN (
+    SELECT DISTINCT(customer_id) FROM rental
+    WHERE rental_date >= NOW() - INTERVAL 3 MONTH
+);
+```
+## 10. 3 mejores clientes de cada tienda con funciones de clasificación y campo booleano adicional:
+```sql
+SELECT 
+    *,
+    CASE 
+        WHEN rank_value = 1 THEN 0
+        ELSE 1
+    END AS mismo_valor
+FROM (
+    SELECT 
+        *,
+        RANK() OVER (PARTITION BY store_id ORDER BY alquileres DESC) AS rank_value
+    FROM (
+        SELECT 
+            s.store_id,
+            c.customer_id,
+            COUNT(*) AS alquileres
+        FROM 
+            rental AS r
+            JOIN customer AS c ON r.customer_id = c.customer_id
+            JOIN store AS s ON c.store_id = s.store_id
+        GROUP BY 
+            s.store_id,
+            c.customer_id
+    ) AS rental_counts
+) AS ranked_customers
+WHERE 
+    rank_value <= 3;
+```
