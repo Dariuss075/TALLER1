@@ -1,7 +1,9 @@
-## 1. Insertar un registro en la tabla 'film':
+## 1. Insertar un registro en la tabla 'film'
+
 ```sql
 INSERT INTO film (title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, special_features)
 VALUES ('sujeto de prueba', 'Descripcion #1', 2030, 1, NULL, 5, 8.99, 150, 2.55, 'G', 'PRUEBAS');
+```
 
 ## 2. Películas más largas que la duración promedio:
 ```sql
